@@ -297,8 +297,8 @@ $(function() {
 	function fDrawOval() {
 		var nOvalX = (nEndX + nX) / 2; //椭圆中心横坐标
 		var nOvalY = (nEndY + nY) / 2; //椭圆中心纵坐标
-		var nOvalA = (nEndX - nX) / 2; //椭圆横半轴长
-		var nOvalB = (nEndY - nY) / 2; //椭圆纵半轴长
+		var nOvalA = Math.abs(nEndX - nX) / 2; //椭圆横半轴长
+		var nOvalB = Math.abs(nEndY - nY) / 2; //椭圆纵半轴长
 	   	var nOvalR = (nOvalA > nOvalB) ? nOvalA : nOvalB; //选择nOvalA、nOvalB中的较大者作为arc方法的半径参数
 	   	var nRatioX = nOvalA / nOvalR; //横轴缩放比率
 	   	var nRatioY = nOvalB / nOvalR; //纵轴缩放比率
@@ -322,24 +322,24 @@ $(function() {
         nEndY = e.pageY - offset.top;
         if(bIsPaint) {
         	//设置左上角
-        	var nLeftX = nX < nEndX ? nX : nEndX;
-        	var nTopY = nY < nEndY ? nY : nEndY;
-        	shapeTip.css({
-        		left: nLeftX + offset.left - ctx.lineWidth / 2, 
-        		top: nTopY - ctx.lineWidth / 2
-        	});
+        	var nLeftX = nX;
+        	var nTopY = nY;
 
+        	shapeTip.css({
+        		left: nLeftX + offset.left - ctx.lineWidth/2, 
+        		top: nTopY - ctx.lineWidth/2
+        	});
 			shapeTip.width(0);
 			var nLength = Math.sqrt(Math.pow(nEndX - nX, 2) + Math.pow(nEndY - nY, 2));
 			shapeTip.height(nLength - ctx.lineWidth);
 
 			//设置旋转原点
-        	var sOriginX = nX < nEndX ? '0' : '100%';
-        	var sOriginY = nY < nEndY ? '0' : '100%';
+        	var sOriginX = 0;
+        	var sOriginY = 0;
 			var sTransformOrigin = sOriginX + ' ' + sOriginY;
 
 			//设置旋转角度
-			var nDegree = - Math.atan((nEndX - nX) / (nEndY - nY)) / Math.PI * 180;
+			var nDegree = -1* Math.atan2((nEndX - nX) , (nEndY - nY)) / Math.PI * 180;
 			var sRotate = 'rotate(' + nDegree + 'deg)';
 			shapeTip.css({
 				'transform': sRotate,
@@ -358,6 +358,7 @@ $(function() {
   	}
 
   	function fDrawLine() { //鼠标放开时绘制直线
+  		ctx.beginPath();
   		ctx.moveTo(nX, nY);
 	    ctx.lineTo(nEndX, nEndY);
 	    ctx.stroke();  
