@@ -6,19 +6,11 @@ block content
 			.col-md-8.col-xs-8
 				.btn-group(role="group")
 					.btn-group(role="group")
-						button.btn.btn-default.dropdown-toggle(type="button" aria-label="取消" data-toggle="dropdown")
-							span.glyphicon.glyphicon-arrow-left(aria-hidden="true")
-							span.caret
-						ul.dropdown-menu.operations
-							li
-								button.btn.btn-default(type="button" aria-label="撤销")
-									span.glyphicon.glyphicon-arrow-left(aria-hidden="true")
-							li
-								button.btn.btn-default(type="button" aria-label="重做")
-									span.glyphicon.glyphicon-arrow-right(aria-hidden="true")
-							li
-								button.btn.btn-default(type="button" aria-label="重置")
-									span.glyphicon.glyphicon-trash(aria-hidden="true")
+						ul.operations
+							button.btn.btn-default(type="button" aria-label="撤销").disabled
+								span.glyphicon.glyphicon-arrow-left(aria-hidden="true")
+							button.btn.btn-default(type="button" aria-label="重做").disabled
+								span.glyphicon.glyphicon-arrow-right(aria-hidden="true")
 					.btn-group.draw-options(role="group")
 						button.btn.btn-default.dropdown-toggle(type="button" aria-label="画笔" data-toggle="dropdown")
 							span.glyphicon.glyphicon-pencil(aria-hidden="true")
@@ -55,6 +47,11 @@ block content
 						ul.dropdown-menu.shapes
 							li
 								input.stroke(type='text')
+					.btn-group(role="group")
+						ul.operations
+							button.btn.btn-default(type="button" aria-label="重置")
+								span.glyphicon.glyphicon-trash(aria-hidden="true")
+
 			.col-md-4.col-xs-4.others
 				.btn-group
 					button.btn.btn-default(type="button" aria-label="用户")
@@ -65,3 +62,4 @@ block content
 			.col-md-12#container
 				input#colorValue(type="hidden")
 				canvas#board
+			#dialog-confirm
