@@ -12,17 +12,21 @@ $(function() {
 	/******** 工具栏 ********/
 
 	//画笔工具
+	var needResetSlider = false;
 	$('.draw-options').find('li').children('button').click(function(event) {
 		sType = $(this).attr("aria-label");
 		if(sType == "文字") {
+			needResetSlider = true;
 			slider.options.min = 10;
 			slider.options.max = 40;
-			slider.setValue(10);
+			slider.setValue(20);
 			ctx.font = slider.getValue() + "px Arial";
 		} else {
 			slider.options.min = 1;
 			slider.options.max = 20;
-			slider.setValue(1);
+			if(needResetSlider)
+				slider.setValue(1);
+			needResetSlider = false;
 			ctx.lineWidth = slider.getValue();
 		}
 		var oUl = $(this).parents('ul');
@@ -70,7 +74,7 @@ $(function() {
 				break;
 			}
 			case "重置": {
-				fClearBoard();
+				fOpenDialog();
 				break;
 			}
 		}
@@ -87,8 +91,8 @@ $(function() {
 	var sType = "画笔"; //工具类型
 
 	//历史记录
-	var aHistory = new Array();
-	var nStep = -1;
+	var undoStack = new Array();
+	var redoStack = new Array();
 
 	//鼠标拖动需要用的示意框
 	var shapeTip = $("<div class='tip'></div>");
@@ -101,10 +105,15 @@ $(function() {
 
 	$("#container").mousedown(function(e){ //鼠标按下 
         bIsPaint = true; //设置绘画标识
+        fundoStackAdd(); //增加历史记录
+        fcleanupRedoStack();	
+        // reset shapeTip attributes
+        shapeTip.removeAttr('style');
         //设置画笔起始点
         var offset = $("#board").offset();
         nX = e.pageX - offset.left;
 		nY = e.pageY - offset.top;
+		ctx.strokeStyle = $('.colors').css('color');
 		//判断工具类型执行相应函数
 		switch(sType) {
 		 	case "画笔": {
@@ -196,7 +205,8 @@ $(function() {
 
   	$("#container").mouseup(function(e){ //鼠标放开
         bIsPaint = false;
-        fHistoryAdd(); //增加历史记录	
+        undoButtonEnabled(true);
+        $(this).css("cursor", "crosshair");
 		switch(sType) {
 		 	case "画笔":
 		 		break;
@@ -321,8 +331,8 @@ $(function() {
 	function fDrawOval() {
 		var nOvalX = (nEndX + nX) / 2; //椭圆中心横坐标
 		var nOvalY = (nEndY + nY) / 2; //椭圆中心纵坐标
-		var nOvalA = (nEndX - nX) / 2; //椭圆横半轴长
-		var nOvalB = (nEndY - nY) / 2; //椭圆纵半轴长
+		var nOvalA = Math.abs(nEndX - nX) / 2; //椭圆横半轴长
+		var nOvalB = Math.abs(nEndY - nY) / 2; //椭圆纵半轴长
 	   	var nOvalR = (nOvalA > nOvalB) ? nOvalA : nOvalB; //选择nOvalA、nOvalB中的较大者作为arc方法的半径参数
 	   	var nRatioX = nOvalA / nOvalR; //横轴缩放比率
 	   	var nRatioY = nOvalB / nOvalR; //纵轴缩放比率
@@ -346,24 +356,24 @@ $(function() {
         nEndY = e.pageY - offset.top;
         if(bIsPaint) {
         	//设置左上角
-        	var nLeftX = nX < nEndX ? nX : nEndX;
-        	var nTopY = nY < nEndY ? nY : nEndY;
-        	shapeTip.css({
-        		left: nLeftX + offset.left - ctx.lineWidth / 2, 
-        		top: nTopY - ctx.lineWidth / 2
-        	});
+        	var nLeftX = nX;
+        	var nTopY = nY;
 
+        	shapeTip.css({
+        		left: nLeftX + offset.left - ctx.lineWidth/2, 
+        		top: nTopY - ctx.lineWidth/2
+        	});
 			shapeTip.width(0);
 			var nLength = Math.sqrt(Math.pow(nEndX - nX, 2) + Math.pow(nEndY - nY, 2));
 			shapeTip.height(nLength - ctx.lineWidth);
 
 			//设置旋转原点
-        	var sOriginX = nX < nEndX ? '0' : '100%';
-        	var sOriginY = nY < nEndY ? '0' : '100%';
+        	var sOriginX = 0;
+        	var sOriginY = 0;
 			var sTransformOrigin = sOriginX + ' ' + sOriginY;
 
 			//设置旋转角度
-			var nDegree = - Math.atan((nEndX - nX) / (nEndY - nY)) / Math.PI * 180;
+			var nDegree = -1* Math.atan2((nEndX - nX) , (nEndY - nY)) / Math.PI * 180;
 			var sRotate = 'rotate(' + nDegree + 'deg)';
 			shapeTip.css({
 				'transform': sRotate,
@@ -382,8 +392,10 @@ $(function() {
   	}
 
   	function fDrawLine() { //鼠标放开时绘制直线
+  		ctx.beginPath();
   		ctx.moveTo(nX, nY);
 	    ctx.lineTo(nEndX, nEndY);
+	    ctx.closePath();
 	    ctx.stroke();  
 	 	$("#board").focus(); 
 	    shapeTip.hide();
@@ -391,41 +403,97 @@ $(function() {
 
 
   	//操作工具函数
-  	function fHistoryAdd() { //增加历史记录
-	    nStep++;
-		if(nStep < aHistory.length) { 
-			aHistory.length = nStep; 
-	  	}
-	  	aHistory.push($("#board").get(0).toDataURL());
+  	function fundoStackAdd() { //增加历史记录
+  		undoButtonEnabled(true);
+	  	undoStack.push($("#board").get(0).toDataURL());
+  	}
+
+  	function fredoStackAdd() {
+  		redoButtonEnabled(true);
+  		redoStack.push($("#board").get(0).toDataURL());
+  	}
+
+  	function fcleanupRedoStack() {
+  		redoButtonEnabled(false);
+  		redoStack.length = 0;
+  	}
+
+  	function undoButtonEnabled(enable){
+  		if(enable)
+  			$('.operations').find("button[aria-label='撤销']").removeClass("disabled");
+  		else
+  			$('.operations').find("button[aria-label='撤销']").addClass("disabled");
+  	}
+
+  	function redoButtonEnabled(enable) {
+  		if(enable)
+  			$('.operations').find("button[aria-label='重做']").removeClass("disabled");
+  		else
+  			$('.operations').find("button[aria-label='重做']").addClass("disabled");
   	}
 
   	function fUndraw() { //撤销
-		if (nStep >= 0) {
+		if (undoStack.length > 0) {
+			// save current canvas
+			fredoStackAdd();
 	  		fClearBoard();
-	  		nStep--;
 	  		var oTemp = new Image();
-	  		oTemp.src = aHistory[nStep];
+	  		oTemp.src = undoStack[undoStack.length - 1];
+	  		undoStack.pop();
 	  		oTemp.onload = function() { 
 	  			ctx.drawImage(oTemp, 0, 0);
 	  		};
+	  		if(undoStack.length == 0)
+	  			undoButtonEnabled(false);
   		}
 	}
 		    	  
 	function fRedraw() { //重做
-		if (nStep < aHistory.length - 1) {
+		if (redoStack.length > 0) {
+			fundoStackAdd();
 			fClearBoard();
-			nStep++;
 			var oTemp = new Image();
-	  		oTemp.src = aHistory[nStep];
+	  		oTemp.src = redoStack[redoStack.length - 1];
+	  		redoStack.pop();
 	  		oTemp.onload = function() { 
 	  			ctx.drawImage(oTemp, 0, 0);
 	  		};
+	  		if(redoStack.length == 0)
+	  			redoButtonEnabled(false);
 		}
+	}
+
+	function fReSet() {
+		undoStack.length = 0;
+		redoStack.length = 0;
+		undoButtonEnabled(false);
+		redoButtonEnabled(false);
+		fClearBoard();
 	}
 
   	function fClearBoard() { //清空画板
   		ctx.fillStyle = "#fff";
 	  	ctx.clearRect(0, 0, $("#board").width(), $("#board").height());
+	}
+
+	function fOpenDialog() {
+		$("#dialog-confirm").html("Do you want to reset canvas?");
+		$("#dialog-confirm").dialog({
+			resizable: false,
+			modal: true,
+			title: "Reset",
+			height: 250,
+			width: 400,
+			buttons: {
+				"Yes": function() {
+					$(this).dialog('close');
+					fReSet();
+				},
+				"No": function() {
+					$(this).dialog('close');
+				}
+			}
+		})
 	}
 
 	//用户工具
